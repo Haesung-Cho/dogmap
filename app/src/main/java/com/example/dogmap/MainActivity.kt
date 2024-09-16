@@ -39,12 +39,22 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 //import androidx.compose.foundation.layout.BoxScopeInstance.align
-
+import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.Button
+import androidx.compose.material3.rememberBottomSheetScaffoldState
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
+
+import androidx.compose.material3.Text
+import androidx.compose.runtime.rememberCoroutineScope
+
 
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -60,7 +70,6 @@ class MainActivity : ComponentActivity() {
         val requestPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
                 if (isGranted) {
-                    // 권한이 승인되었을 때
                     setContent {
                         DogmapTheme {
                             Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -72,7 +81,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 } else {
-                    // 권한이 거부되었을 때
                     Toast.makeText(this, "위치 권한이 필요합니다", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -83,7 +91,6 @@ class MainActivity : ComponentActivity() {
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED -> {
-                // 권한이 이미 승인된 경우
                 setContent {
                     DogmapTheme {
                         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -96,7 +103,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
             else -> {
-                // 권한을 요청
                 requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
         }
@@ -104,6 +110,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
     modifier: Modifier = Modifier,
@@ -111,9 +118,13 @@ fun MapScreen(
 ) {
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
     var places by remember { mutableStateOf<List<Place>>(emptyList()) }
+    var selectedPlace by remember { mutableStateOf<Place?>(null) }  // 선택된 장소 정보 저장
 
     val cameraPositionState = rememberCameraPositionState()
     val context = LocalContext.current
+    val scaffoldState = rememberBottomSheetScaffoldState()  // BottomSheetScaffoldState를 사용
+    val coroutineScope = rememberCoroutineScope()  // CoroutineScope 사용
+
 
     // Firestore 인스턴스 가져오기
     val db = FirebaseFirestore.getInstance()
@@ -129,20 +140,18 @@ fun MapScreen(
     LaunchedEffect(Unit) {
         db.collection("places").get()
             .addOnSuccessListener { result ->
-                val fetchedPlaces = result.map { document ->
+                places = result.map { document ->
                     Place(
                         name = document.getString("name") ?: "",
                         latitude = document.getDouble("latitude") ?: 0.0,
                         longitude = document.getDouble("longitude") ?: 0.0,
                         address = document.getString("address") ?: "주소 없음",
                         price = document.getString("price") ?: "가격 정보 없음",
-                        category = document.getString("category") ?: "카테고리 없음"
+                        category = document.getString("category") ?: "카테고리 없음",
+                        url = document.getString("url") ?: "url 없음"
                     )
                 }
-                places = fetchedPlaces
-            }
-            .addOnFailureListener {
-                Toast.makeText(context, "장소 데이터를 불러오는데 실패했습니다.", Toast.LENGTH_SHORT).show()
+
             }
 
         // 위치 권한이 있는지 확인하고 위치 업데이트 요청
@@ -171,45 +180,77 @@ fun MapScreen(
         }
     }
 
+    // BottomSheetScaffold에 선택한 장소 정보 표시
+    val bottomSheetScaffoldState = rememberBottomSheetScaffoldState()
+
     Scaffold(
-        modifier = modifier.fillMaxSize(),
         floatingActionButton = {
-            Box(modifier = Modifier.fillMaxSize()) {
-                FloatingActionButton(
-                    onClick = {
-                        currentLocation?.let {
-                            cameraPositionState.position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(it, 15f)
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(bottom = 100.dp, end = 16.dp) // 확대 축소 버튼 위에 내 위치 버튼을 배치
-                ) {
-                    Icon(imageVector = Icons.Default.MyLocation, contentDescription = "현재 위치로 이동")
-                }
+            FloatingActionButton(
+                onClick = {
+                    currentLocation?.let {
+                        cameraPositionState.position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(it, 15f)
+                    }
+                },
+                modifier = Modifier
+                    .padding(bottom = 100.dp, end = 16.dp)
+            ) {
+                Icon(imageVector = Icons.Default.MyLocation, contentDescription = "현재 위치로 이동")
             }
         }
     ) {
+        BottomSheetScaffold(
+            scaffoldState = scaffoldState,
+            sheetContent = {
+                selectedPlace?.let { place ->
+                    Column(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth()
+                    ) {
+                        Text(text = "업체 이름: ${place.name}")
+                        Text(text = "카테고리: ${place.category}")
+                        Text(text = "가격: ${place.price}")
+                        Text(text = "주소: ${place.address}")
+                        Button(onClick = {
+                            // 상세 페이지 보기 처리
+                        }) {
+                            Text("${place.url}")
+                        }
+                    }
+                }?: Text("정보 없음", modifier = Modifier.padding(16.dp))
+            },
+            sheetPeekHeight = 0.dp,  // BottomSheet가 최소화된 상태에서 보이지 않도록 설정
 
-        GoogleMap(
-            modifier = modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState
+            modifier = modifier.fillMaxSize()
         ) {
-            // 현재 위치에 마커 표시
-            currentLocation?.let {
-                Marker(
-                    state = MarkerState(position = it),
-                    title = "내 위치"
-                )
-            }
+            GoogleMap(
+                modifier = modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState
 
-            // Firestore에서 불러온 장소에 마커 표시
-            places.forEach { place ->
-                Marker(
-                    state = MarkerState(position = LatLng(place.latitude, place.longitude)),
-                    title = place.name,
-                    snippet = "카테고리: ${place.category}"
-                )
+                ) {
+                // 현재 위치에 마커 표시
+                currentLocation?.let {
+                    Marker(
+                        state = MarkerState(position = it),
+                        title = "내 위치"
+                    )
+                }
+
+                // Firestore에서 불러온 장소에 마커 표시
+                places.forEach { place ->
+                    Marker(
+                        state = MarkerState(position = LatLng(place.latitude, place.longitude)),
+                        title = place.name,
+                        snippet = "카테고리: ${place.category}",
+                        onClick = {
+                            selectedPlace = place  // 마커 클릭 시 장소 정보 저장
+                            coroutineScope.launch {
+                                scaffoldState.bottomSheetState.expand()  // CoroutineScope에서 expand() 호출
+                            }
+                            false // 기본 정보창 동작을 유지하도록 설정
+                        }
+                    )
+                }
             }
         }
     }
@@ -222,5 +263,6 @@ data class Place(
     val longitude: Double,
     val address: String,   // 주소 추가
     val price: String,      // 가격 정보 추가
-    val category: String
+    val category: String,
+    val url: String
 )
