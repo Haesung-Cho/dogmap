@@ -2,7 +2,9 @@ package com.example.dogmap
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
 import android.widget.Toast
@@ -10,6 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -148,7 +151,7 @@ fun MapScreen(
                         address = document.getString("address") ?: "주소 없음",
                         price = document.getString("price") ?: "가격 정보 없음",
                         category = document.getString("category") ?: "카테고리 없음",
-                        url = document.getString("url") ?: "url 없음"
+                        url = document.getString("url") ?: "링크 없음"
                     )
                 }
 
@@ -211,10 +214,20 @@ fun MapScreen(
                         Text(text = "카테고리: ${place.category}")
                         Text(text = "가격: ${place.price}")
                         Text(text = "주소: ${place.address}")
-                        Button(onClick = {
-                            // 상세 페이지 보기 처리
-                        }) {
-                            Text("${place.url}")
+
+                        // 상세 페이지 보기 버튼 클릭 시 URL 이동
+                        Button(
+                            onClick = {
+                                // URL이 비어있지 않으면 Intent로 브라우저 열기
+                                if (place.url.isNotEmpty()) {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(place.url))
+                                    context.startActivity(intent)
+                                } else {
+                                    Toast.makeText(context, "URL이 없습니다", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        ) {
+                            Text("상세 페이지 보기")
                         }
                     }
                 }?: Text("정보 없음", modifier = Modifier.padding(16.dp))
