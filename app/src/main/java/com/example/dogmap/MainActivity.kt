@@ -59,6 +59,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import coil.compose.rememberImagePainter
+
+
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
@@ -151,7 +160,8 @@ fun MapScreen(
                         address = document.getString("address") ?: "주소 없음",
                         price = document.getString("price") ?: "가격 정보 없음",
                         category = document.getString("category") ?: "카테고리 없음",
-                        url = document.getString("url") ?: "링크 없음"
+                        url = document.getString("url") ?: "링크 없음",
+                        images = document.get("images") as? List<String> ?: emptyList()  // 이미지 추가
                     )
                 }
 
@@ -210,10 +220,37 @@ fun MapScreen(
                             .padding(16.dp)
                             .fillMaxWidth()
                     ) {
-                        Text(text = "업체 이름: ${place.name}")
-                        Text(text = "카테고리: ${place.category}")
-                        Text(text = "가격: ${place.price}")
-                        Text(text = "주소: ${place.address}")
+                        // 장소 이미지 표시
+                        place.images.take(3).forEach { imageUrl ->
+                            Image(
+                                painter = rememberImagePainter(imageUrl),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .padding(bottom = 8.dp)
+                            )
+                        }
+                        // 텍스트 스타일링 적용
+                        Text(
+                            text = "업체 이름: ${place.name}",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp
+                            )
+                        )
+                        Text(
+                            text = "카테고리: ${place.category}",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp)
+                        )
+                        Text(
+                            text = "가격: ${place.price}",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp)
+                        )
+                        Text(
+                            text = "주소: ${place.address}",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp)
+                        )
 
                         // 상세 페이지 보기 버튼 클릭 시 URL 이동
                         Button(
@@ -221,7 +258,16 @@ fun MapScreen(
                                 // URL이 비어있지 않으면 Intent로 브라우저 열기
                                 if (place.url.isNotEmpty()) {
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(place.url))
-                                    context.startActivity(intent)
+                                    intent.setPackage("com.sec.android.app.sbrowser")  // 삼성 인터넷 패키지명 설정
+
+                                    // 삼성 브라우저가 설치되어 있는지 확인하고 실행
+                                    if (intent.resolveActivity(context.packageManager) != null) {
+                                        context.startActivity(intent)
+                                    } else {
+                                        // 삼성 인터넷이 설치되어 있지 않으면 기본 브라우저로 열기
+                                        val defaultIntent = Intent(Intent.ACTION_VIEW, Uri.parse(place.url))
+                                        context.startActivity(defaultIntent)
+                                    }
                                 } else {
                                     Toast.makeText(context, "URL이 없습니다", Toast.LENGTH_SHORT).show()
                                 }
@@ -277,5 +323,7 @@ data class Place(
     val address: String,   // 주소 추가
     val price: String,      // 가격 정보 추가
     val category: String,
-    val url: String
+    val url: String,
+    val images: List<String>  // 이미지 필드 추가
+
 )
