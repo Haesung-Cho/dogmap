@@ -77,6 +77,7 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.5.0")
     implementation("androidx.compose.material3:material3:1.3.0")
     implementation("androidx.compose.ui:ui-tooling-preview:1.5.0")
+    implementation(libs.androidx.room.ktx)
     debugImplementation("androidx.compose.ui:ui-tooling:1.7.0")
     implementation("com.google.firebase:firebase-firestore:25.1.0")
     implementation(platform("com.google.firebase:firebase-bom:33.2.0"))

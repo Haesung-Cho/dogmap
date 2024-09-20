@@ -2,70 +2,44 @@ package com.example.dogmap
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.dogmap.ui.theme.DogmapTheme
 import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-//import androidx.compose.foundation.layout.BoxScopeInstance.align
-import androidx.compose.material3.BottomSheetScaffold
-import androidx.compose.material3.Button
-import androidx.compose.material3.rememberBottomSheetScaffoldState
-
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ExperimentalMaterial3Api
-
-import androidx.compose.material3.Text
-import androidx.compose.runtime.rememberCoroutineScope
-
-
-import androidx.compose.ui.unit.dp
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import coil.compose.rememberImagePainter
 
 
 class MainActivity : ComponentActivity() {
@@ -73,7 +47,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
 
         // Fused Location Provider 초기화
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
@@ -130,13 +103,12 @@ fun MapScreen(
 ) {
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
     var places by remember { mutableStateOf<List<Place>>(emptyList()) }
-    var selectedPlace by remember { mutableStateOf<Place?>(null) }  // 선택된 장소 정보 저장
+    var selectedPlace by remember { mutableStateOf<Place?>(null) }
 
     val cameraPositionState = rememberCameraPositionState()
     val context = LocalContext.current
-    val scaffoldState = rememberBottomSheetScaffoldState()  // BottomSheetScaffoldState를 사용
-    val coroutineScope = rememberCoroutineScope()  // CoroutineScope 사용
-
+    val scaffoldState = rememberBottomSheetScaffoldState()
+    val coroutineScope = rememberCoroutineScope()
 
     // Firestore 인스턴스 가져오기
     val db = FirebaseFirestore.getInstance()
@@ -144,8 +116,8 @@ fun MapScreen(
     // LocationRequest 설정
     val locationRequest = com.google.android.gms.location.LocationRequest.create().apply {
         priority = com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY
-        interval = 5000 // 5초마다 업데이트
-        smallestDisplacement = 5f // 최소 5미터 이동 시 업데이트
+        interval = 5000
+        smallestDisplacement = 5f
     }
 
     // Firestore에서 장소 데이터를 불러오기
@@ -153,6 +125,9 @@ fun MapScreen(
         db.collection("places").get()
             .addOnSuccessListener { result ->
                 places = result.map { document ->
+                    val instagram = document.getString("instagram") ?: ""
+                    Log.d("Firestore", "Instagram Link: $instagram")  // 로그 추가
+
                     Place(
                         name = document.getString("name") ?: "",
                         latitude = document.getDouble("latitude") ?: 0.0,
@@ -161,10 +136,11 @@ fun MapScreen(
                         price = document.getString("price") ?: "가격 정보 없음",
                         category = document.getString("category") ?: "카테고리 없음",
                         url = document.getString("url") ?: "링크 없음",
-                        images = document.get("images") as? List<String> ?: emptyList()  // 이미지 추가
+                        time = document.getString("time") ?: "시간 정보 없음",
+                        images = document.get("images") as? List<String> ?: emptyList(),
+                        instagram = document.getString("instagram") ?: ""
                     )
                 }
-
             }
 
         // 위치 권한이 있는지 확인하고 위치 업데이트 요청
@@ -176,25 +152,21 @@ fun MapScreen(
             fusedLocationClient.requestLocationUpdates(
                 locationRequest,
                 object : com.google.android.gms.location.LocationCallback() {
-                    override fun onLocationResult(locationResult: LocationResult) {
+                    override fun onLocationResult(locationResult: com.google.android.gms.location.LocationResult) {
                         val location = locationResult.lastLocation
                         if (location != null) {
                             currentLocation = LatLng(location.latitude, location.longitude)
-                            cameraPositionState.position =
-                                com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(
-                                    currentLocation!!, 15f
-                                )
+                            cameraPositionState.position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(
+                                currentLocation!!, 15f
+                            )
                         }
                     }
-                }, Looper.getMainLooper()
+                }, android.os.Looper.getMainLooper()
             )
         } else {
             Toast.makeText(context, "위치 권한이 없습니다.", Toast.LENGTH_SHORT).show()
         }
     }
-
-    // BottomSheetScaffold에 선택한 장소 정보 표시
-    val bottomSheetScaffoldState = rememberBottomSheetScaffoldState()
 
     Scaffold(
         floatingActionButton = {
@@ -219,23 +191,13 @@ fun MapScreen(
                         modifier = Modifier
                             .padding(16.dp)
                             .fillMaxWidth()
+                            .padding(bottom = 50.dp)  // 하단에 50dp 패딩 추가
                     ) {
-                        // 장소 이미지 표시
-                        place.images.take(3).forEach { imageUrl ->
-                            Image(
-                                painter = rememberImagePainter(imageUrl),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp)
-                                    .padding(bottom = 8.dp)
-                            )
-                        }
-                        // 텍스트 스타일링 적용
+                                                // 텍스트 스타일링 적용
                         Text(
                             text = "업체 이름: ${place.name}",
                             style = MaterialTheme.typography.bodyLarge.copy(
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                 fontSize = 20.sp
                             )
                         )
@@ -244,7 +206,7 @@ fun MapScreen(
                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp)
                         )
                         Text(
-                            text = "가격: ${place.price}",
+                            text = "영업시간: ${place.time}",
                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp)
                         )
                         Text(
@@ -255,17 +217,14 @@ fun MapScreen(
                         // 상세 페이지 보기 버튼 클릭 시 URL 이동
                         Button(
                             onClick = {
-                                // URL이 비어있지 않으면 Intent로 브라우저 열기
                                 if (place.url.isNotEmpty()) {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(place.url))
-                                    intent.setPackage("com.sec.android.app.sbrowser")  // 삼성 인터넷 패키지명 설정
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(place.url))
+                                    intent.setPackage("com.sec.android.app.sbrowser")
 
-                                    // 삼성 브라우저가 설치되어 있는지 확인하고 실행
                                     if (intent.resolveActivity(context.packageManager) != null) {
                                         context.startActivity(intent)
                                     } else {
-                                        // 삼성 인터넷이 설치되어 있지 않으면 기본 브라우저로 열기
-                                        val defaultIntent = Intent(Intent.ACTION_VIEW, Uri.parse(place.url))
+                                        val defaultIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(place.url))
                                         context.startActivity(defaultIntent)
                                     }
                                 } else {
@@ -275,38 +234,69 @@ fun MapScreen(
                         ) {
                             Text("상세 페이지 보기")
                         }
-                    }
-                }?: Text("정보 없음", modifier = Modifier.padding(16.dp))
-            },
-            sheetPeekHeight = 0.dp,  // BottomSheet가 최소화된 상태에서 보이지 않도록 설정
+                        // Instagram 버튼 추가 (링크가 있을 때만 표시)
+                        if (place.instagram.isNotEmpty()) {
+                            Button(
+                                onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(place.instagram))
+                                    // 삼성 브라우저로 연결
+                                    intent.setPackage("com.sec.android.app.sbrowser")
 
+                                    // 삼성 브라우저가 설치되어 있는지 확인
+                                    if (intent.resolveActivity(context.packageManager) != null) {
+                                        context.startActivity(intent)
+                                    } else {
+                                        // 삼성 브라우저가 없으면 기본 브라우저로 연결
+                                        val defaultIntent = Intent(Intent.ACTION_VIEW, Uri.parse(place.instagram))
+                                        context.startActivity(defaultIntent)
+                                    }
+                                }
+                            ) {
+                                Text("Instagram")
+                            }
+                        }
+
+
+
+                    }
+                } ?: Text("정보 없음", modifier = Modifier.padding(16.dp))
+            },
+            sheetPeekHeight = 0.dp,
             modifier = modifier.fillMaxSize()
         ) {
             GoogleMap(
                 modifier = modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState
+            ) {
+                currentLocation?.let {location ->
+                    val markerState = MarkerState(position = location)
+                    var isBlinking by remember { mutableStateOf(false) }
 
-                ) {
-                // 현재 위치에 마커 표시
-                currentLocation?.let {
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            isBlinking = !isBlinking
+                            delay(500)  // 500ms마다 깜빡이기
+                        }
+                    }
+
                     Marker(
-                        state = MarkerState(position = it),
-                        title = "내 위치"
+                        state = markerState,
+                        title = "내 위치",
+                        icon = if (isBlinking) getBlinkingMarkerIcon(context) else getCustomMarkerIcon(context)
                     )
                 }
 
-                // Firestore에서 불러온 장소에 마커 표시
                 places.forEach { place ->
                     Marker(
                         state = MarkerState(position = LatLng(place.latitude, place.longitude)),
                         title = place.name,
                         snippet = "카테고리: ${place.category}",
                         onClick = {
-                            selectedPlace = place  // 마커 클릭 시 장소 정보 저장
+                            selectedPlace = place
                             coroutineScope.launch {
-                                scaffoldState.bottomSheetState.expand()  // CoroutineScope에서 expand() 호출
+                                scaffoldState.bottomSheetState.expand()
                             }
-                            false // 기본 정보창 동작을 유지하도록 설정
+                            false
                         }
                     )
                 }
@@ -314,16 +304,40 @@ fun MapScreen(
         }
     }
 }
+// 커스텀 마커 아이콘
 
-// 장소 데이터를 담는 데이터 클래스
+fun getCustomMarkerIcon(context: Context): BitmapDescriptor {
+    val drawable: Drawable = ContextCompat.getDrawable(context, R.drawable.my_location_marker)!!
+    return bitmapFromDrawable(drawable)
+}
+
+// 깜빡이는 마커 아이콘
+
+fun getBlinkingMarkerIcon(context: Context): BitmapDescriptor {
+    val drawable: Drawable = ContextCompat.getDrawable(context, R.drawable.my_location_marker_blink)!!
+    return bitmapFromDrawable(drawable)
+}
+
+// Drawable을 Bitmap으로 변환하는 함수
+fun bitmapFromDrawable(drawable: Drawable): BitmapDescriptor {
+    val canvas = Canvas()
+    val bitmap = Bitmap.createBitmap(drawable.intrinsicWidth / 10, drawable.intrinsicHeight / 10, Bitmap.Config.ARGB_8888)
+    canvas.setBitmap(bitmap)
+    drawable.setBounds(0, 0, canvas.width, canvas.height)
+    drawable.draw(canvas)
+    return BitmapDescriptorFactory.fromBitmap(bitmap)
+}
+
+
 data class Place(
     val name: String,
     val latitude: Double,
     val longitude: Double,
-    val address: String,   // 주소 추가
-    val price: String,      // 가격 정보 추가
+    val address: String,
+    val price: String,
     val category: String,
     val url: String,
-    val images: List<String>  // 이미지 필드 추가
-
+    val images: List<String>,
+    val time: String,
+    val instagram: String
 )
