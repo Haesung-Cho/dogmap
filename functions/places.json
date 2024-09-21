@@ -1,0 +1,30 @@
+{
+  "places": [
+    {
+      "name": "강아지봄",
+      "address": "경기 용인시 수지구 심곡로 87 수지 제일 아이조움",
+      "category": "강아지 미용실",
+      "images": [
+        "https://example.com/image1.jpg",
+        "https://example.com/image2.jpg"
+      ],
+      "latitude": 37.310764,
+      "longitude": 127.081431,
+      "price": "목욕 2만원, 미용 3만원",
+      "url": "https://naver.me/FWJPzce2"
+    },
+    {
+      "name": "김밥천국 성복점",
+      "address": "경기 용인시 수지구 성복동",
+      "category": "음식점",
+      "images": [
+        "https://example.com/image3.jpg",
+        "https://example.com/image4.jpg"
+      ],
+      "latitude": 37.312345,
+      "longitude": 127.123456,
+      "price": "김밥 3천원",
+      "url": "https://naver.me/example"
+    }
+  ]
+}
